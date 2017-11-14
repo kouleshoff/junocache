@@ -1,4 +1,4 @@
-#GO Redis-like in-memory cache
+# GO Redis-like in-memory cache
 
 Learning GO by implementing a simplified caching server with
 

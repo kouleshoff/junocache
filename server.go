@@ -4,7 +4,10 @@ import (
   "bufio"
   "fmt"
   "net"
+  "time"
+  "strconv"
   "strings"
+  "math/rand"
 )
 
 const (
@@ -12,37 +15,17 @@ const (
   EXIT_VERB string = "exit"
 )
 
-type CacheCommand struct {
-  verb    string
-  key     string
-  body    interface{}
-  conn    net.Conn
-}
-
-func handleCommand(command CacheCommand) {
-  info := fmt.Sprintf("Performing command %s with key %s / body %v\n", command.verb, command.key, command.body)
-  command.conn.Write([]byte(info))
-}
-
-func checkError(e error, message string) bool {
-  if e != nil {
-    fmt.Println("Error", e)
-    return false
-  } else {
-    fmt.Println(message)
-    return true
-  }
-}
-
 func main() {
+  rand.Seed(time.Now().UnixNano())
   ln, err := net.Listen("tcp", LISTEN_PORT)
   if !checkError(err, "Server is ready.") {
     panic("Could not create listener.")
   }
 
-  clientCommands := make(chan CacheCommand)
+  memCache := Cache{make(map[string]Item)}
+  clientCommands := make(chan Command)
   defer ln.Close()
-  go func(in chan CacheCommand) {
+  go func(in chan Command) {
     for {
       cmd := <-in
       if cmd.verb == EXIT_VERB {
@@ -50,7 +33,7 @@ func main() {
         ln.Close()
         break
       } else {
-        handleCommand(cmd)
+        memCache.HandleCommand(cmd)
       }
     }
   }(clientCommands)
@@ -63,19 +46,42 @@ func main() {
     go func(conn net.Conn) {
       buf := bufio.NewReader(conn)
       for {
-        verb, err := buf.ReadString('\n')
+        header, err := buf.ReadString('\n')
         if err != nil {
           fmt.Printf("Client disconnected: %v\n", err)
           break
         }
-        if len(strings.TrimSpace(verb)) == 0 {
-          fmt.Printf("Client requested disconnect.\n")
+        if len(strings.TrimSpace(header)) == 0 {
+          fmt.Printf("Client %v requested disconnect.\n", conn)
           conn.Close()
           break
         }
-        clientCommands <- CacheCommand{strings.Trim(verb,"\n\r"),"key","body",conn}
+        cmdSlice := strings.Split(strings.Trim(header,"\n\r"), " ")
+        if len(cmdSlice) > 1 {
+          cmd := Command{verb:cmdSlice[0], key:cmdSlice[1], conn:conn}
+          // time to live is optionally specified in seconds
+          if len(cmdSlice) > 3 && cmdSlice[len(cmdSlice)-2] == "TTL" {
+            ttl, err := strconv.Atoi(cmdSlice[len(cmdSlice)-1])
+            if err == nil {
+              cmd.ttl = int64(ttl)
+            }
+          }
+          clientCommands <- cmd
+        } else {
+          conn.Write([]byte("-ERR expected input \"CMD KEY[ ...][TTL n]\"\n\n"))
+        }
       }
     }(conn)
   }
   fmt.Println("Server exiting now...")
+}
+
+func checkError(e error, message string) bool {
+  if e != nil {
+    fmt.Println("Error", e)
+    return false
+  } else {
+    fmt.Println(message)
+    return true
+  }
 }

@@ -21,10 +21,13 @@ The protocol is text-based over TCP/IP
 
 Each command starts on a new line and consists of a verb, a cache key
 and any optional arguments.
+The SET command line should be followed by command body (any characters)
+and terminated by two newlines to indicate the end of current command.
 
 - `GET abc` (get string by key)
 - `SET abc` (set string value for the specified key)
 - `DEL abc` (delete value stored for the given key, if any)
+- `exit` to stop the server
 
 The response indicates whether the command succeeded
 In case of a GET command, the value stored under specified key is written
@@ -51,7 +54,8 @@ go run server.go commands.go items.go cache.go
 
 ### Client connections
 
-The service has been tested using telnet client
+The service has been tested using telnet client.
+Use empty line to close current client connection
 
 ```
 -> telnet localhost 8080
@@ -60,10 +64,12 @@ Connected to localhost.
 Escape character is '^]'.
 GET a
 -ERR GET with key a
-
 SET a TTL 10
-+OK SET with key a
+DHTSXKuDeGfIjsSB
 
++OK SET with key a
 GET a
-+OK GET with key a DHTSXKuDeGfIjsSB
++OK GET with key a
+DHTSXKuDeGfIjsSB
+
 ```

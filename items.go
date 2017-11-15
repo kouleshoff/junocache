@@ -2,7 +2,7 @@ package main
 
 type StringItem struct {
   expiration int64
-  Value string
+  Value []byte
 }
 
 func (v StringItem) Expiration() int64 {
@@ -13,10 +13,10 @@ func (v StringItem) Size() int {
   return 1
 }
 
-func (v StringItem) GetFirst() (string,bool) {
+func (v StringItem) GetFirst() ([]byte,bool) {
   return v.Value, true
 }
 
 func (v StringItem) String() string {
-	return v.Value
+	return string(v.Value)
 }

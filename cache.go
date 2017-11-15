@@ -7,7 +7,7 @@ import (
 type Item interface {
   Expiration() int64
   Size() int
-  GetFirst() (string,bool)
+  GetFirst() ([]byte,bool)
 }
 
 type Cache struct {

@@ -5,6 +5,7 @@ import (
   "fmt"
   "net"
   "time"
+  "bytes"
   "strconv"
   "strings"
   "math/rand"
@@ -29,7 +30,7 @@ func main() {
     for {
       cmd := <-in
       if cmd.verb == EXIT_VERB {
-        cmd.conn.Write([]byte("bye\n"))
+        cmd.conn.Write([]byte("bye.\r\n"))
         ln.Close()
         break
       } else {
@@ -66,9 +67,19 @@ func main() {
               cmd.ttl = int64(ttl)
             }
           }
-          clientCommands <- cmd
+          if cmd.RequiresBody() {
+            body, ok := readBody(buf)
+            if ok {
+              cmd.body = body
+              clientCommands <- cmd
+            } else {
+              conn.Write([]byte("-ERR expected command body\r\n"))
+            }
+          } else {
+            clientCommands <- cmd
+          }
         } else {
-          conn.Write([]byte("-ERR expected input \"CMD KEY[ ...][TTL n]\"\n\n"))
+          conn.Write([]byte("-ERR expected input \"CMD KEY[ ...][TTL n]\"\r\n"))
         }
       }
     }(conn)
@@ -84,4 +95,25 @@ func checkError(e error, message string) bool {
     fmt.Println(message)
     return true
   }
+}
+
+// reads all available input line by line
+// stops when an empty line is encountered
+// the lines are concatenated into body variable
+func readBody(reader *bufio.Reader) (body []byte, ok bool) {
+  ok = true
+  for ok {
+    // ReadLine doesn't return the trailing \r\n symbols
+    line, isPrefix, err := reader.ReadLine()
+    if err != nil {
+      fmt.Printf("error: %v\n", err)
+      ok = false
+    } else {
+      if len(line) == 0 && !isPrefix {
+        break
+      }
+      body = bytes.Join([][]byte{body,line},[]byte{13,10})
+    }
+  }
+  return
 }
